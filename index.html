@@ -769,7 +769,8 @@ function showToast(msg){
   setInterval(tick, TICK);
 })();
 
-// ホーム画面アイコン：元のアイコン画像の左上に Claude Code のキャラクターを描き足す
+// ホーム画面アイコン：canvas で描く（ドット絵の額縁＋夜空の山＋Claude Code のキャラクター）
+//   iPhone はアイコンの四隅を丸く切るので、絵柄はすべて角から離して内側に置く
 (function ccIcon() {
   const appleIcon = document.getElementById('appleIcon');
   if (!appleIcon) return;
@@ -779,23 +780,82 @@ function showToast(msg){
     favIcon.rel = 'icon'; favIcon.type = 'image/png'; favIcon.id = 'favIcon';
     document.head.appendChild(favIcon);
   }
-  const img = new Image();
-  img.onload = function() {
+  function draw() {
+    const S = 512;
     const canvas = document.createElement('canvas');
-    canvas.width = img.width; canvas.height = img.height;
+    canvas.width = S; canvas.height = S;
     const ctx = canvas.getContext('2d');
-    ctx.drawImage(img, 0, 0);
-    var p=3, ox=4, oy=4;   // 1ドットの大きさと左上の位置（180pxアイコン、金の額の外の角）
-    var px=function(x,y,w,h,col){ctx.fillStyle=col;ctx.fillRect(ox+x*p,oy+y*p,w*p,h*p);};
-    var o='#d97757';
-    px(2,0,8,6,o); px(0,2,2,2,o); px(10,2,2,2,o);               // 体と両腕
-    px(2,6,1,2,o); px(4,6,1,2,o); px(7,6,1,2,o); px(9,6,1,2,o); // 足4本
-    px(3,1,1,1,'#1a1612'); px(8,1,1,1,'#1a1612');               // 目
+    const r = (x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(x, y, w, h); };
+
+    // 背景（濃い紺のグラデーション）
+    const bg = ctx.createRadialGradient(256, 220, 40, 256, 256, 360);
+    bg.addColorStop(0, '#0a0a8a'); bg.addColorStop(1, '#000030');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, S, S);
+
+    // ウィンドウ枠（角が丸く切られても残る位置）
+    r(52, 52, 408, 408, '#7799ff');
+    r(62, 62, 388, 388, '#334499');
+    r(68, 68, 376, 376, '#000055');
+
+    // 金の額縁
+    r(104, 92, 304, 236, '#ffdd44');
+    r(112, 100, 288, 220, '#aa7700');
+    r(118, 106, 276, 208, '#000028');
+    // 夜空のグラデーション
+    const sky = ctx.createLinearGradient(0, 106, 0, 314);
+    sky.addColorStop(0, '#000022'); sky.addColorStop(1, '#10206a');
+    ctx.fillStyle = sky; ctx.fillRect(118, 106, 276, 208);
+
+    // 星
+    [[236,124],[284,150],[214,170],[318,118],[256,190],[376,206]].forEach(([x,y]) => r(x, y, 6, 6, '#ffffff'));
+
+    // 月（三日月）
+    ctx.fillStyle = '#ffdd44';
+    ctx.beginPath(); ctx.arc(352, 150, 24, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#000022';
+    ctx.beginPath(); ctx.arc(364, 140, 22, 0, Math.PI * 2); ctx.fill();
+
+    // 山（ドット絵の段々）
+    const step = 12;
+    function mountain(cx, top, base, col) {
+      for (let y = top; y < base; y += step) {
+        const half = (y - top) + step;
+        r(cx - half, y, half * 2, step, col);
+      }
+    }
+    ctx.save(); ctx.beginPath(); ctx.rect(118, 106, 276, 208); ctx.clip();
+    mountain(330, 214, 314, '#119955');
+    mountain(222, 196, 314, '#33dd88');
+    r(222 - 12, 196, 24, 12, '#ffffff'); r(222 - 24, 208, 48, 12, '#ffffff');  // 雪
+    ctx.restore();
+
+    // Claude Code のキャラクター（夜空の左上。画面左上で歩いているものと同じドット絵）
+    (function(){
+      var p=7, ox=132, oy=118;
+      var px=function(x,y,w,h,col){ctx.fillStyle=col;ctx.fillRect(ox+x*p,oy+y*p,w*p,h*p);};
+      var o='#d97757';
+      px(2,0,8,6,o); px(0,2,2,2,o); px(10,2,2,2,o);               // 体と両腕
+      px(2,6,1,2,o); px(4,6,1,2,o); px(7,6,1,2,o); px(9,6,1,2,o); // 足4本
+      px(3,1,1,1,'#1a1612'); px(8,1,1,1,'#1a1612');               // 目
+    })();
+
+    // 文字「画像ビューア」
+    ctx.font = "56px 'DotGothic16', monospace";
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#664400'; ctx.fillText('画像ビューア', 259, 391);
+    ctx.fillStyle = '#ffdd44'; ctx.fillText('画像ビューア', 256, 388);
+
     const url = canvas.toDataURL('image/png');
     appleIcon.href = url;
     favIcon.href = url;
-  };
-  img.src = appleIcon.href;
+  }
+  // 文字をドット文字で描くため、フォントの読み込みを待つ（3秒で諦めて描く）
+  let done = false;
+  const go = () => { if (!done) { done = true; draw(); } };
+  if (document.fonts && document.fonts.load) {
+    document.fonts.load("56px 'DotGothic16'", '画像ビューア').then(go, go);
+    setTimeout(go, 3000);
+  } else go();
 })();
 </script>
 </body>
