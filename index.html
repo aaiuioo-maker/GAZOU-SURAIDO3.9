@@ -158,7 +158,7 @@ html,body{width:100%;height:100%;background:var(--bg);font-family:var(--font);co
 /* ときどきまばたき */
 .cc-eye { animation: cc-blink 4s infinite; }
 /* === GitHub のマーク（ヘッダー左上、オレンジのキャラクターの右） ===
-   横には動かず、その場で：タコの足をゆらゆら・ときどき首をかしげる・ときどき目をパチッ・ふわっと浮く。タップすると1回転 */
+   横には動かず、その場で：タコの足をゆらゆら・ときどき首をかしげる・ときどき目をパチッ。タップすると1回転 */
 .gh-wrap { width: 46px; height: 40px; flex-shrink: 0; display: flex; justify-content: center; margin-right: 6px; }
 .gh-mascot { display: flex; flex-direction: column; align-items: center; gap: 2px; text-decoration: none; padding-top: 3px; }
 .gh-mascot svg { width: 28px; height: 28px; overflow: visible; }
@@ -167,7 +167,7 @@ html,body{width:100%;height:100%;background:var(--bg);font-family:var(--font);co
 .gh-cat, .gh-eyes { fill: #000055; }
 .gh-tail-line { fill: none; stroke: #000055; stroke-width: 0.8; stroke-linecap: round; }
 .gh-dot { fill: #e6edf3; }
-.gh-all { transform-box: view-box; transform-origin: 8px 8px; animation: gh-float 3.2s ease-in-out infinite; }
+.gh-all { transform-box: view-box; transform-origin: 8px 8px; }
 .gh-head { transform-box: view-box; transform-origin: 8px 10.4px; animation: gh-tilt 5s ease-in-out infinite; }
 .gh-tail { transform-box: view-box; transform-origin: 6.5px 12.35px; animation: gh-wag 1.4s ease-in-out infinite alternate; }
 /* 目はふだん見せない（ロゴと同じ顔なし）。ときどき一瞬だけ白く開いてパチッ */
@@ -177,8 +177,7 @@ html,body{width:100%;height:100%;background:var(--bg);font-family:var(--font);co
 .cc-wrap, .gh-wrap { height: 46px; align-items: flex-end; }
 .cc-mascot, .gh-mascot { height: 46px; justify-content: flex-end; padding-top: 0; gap: 3px; }
 .gh-wrap { width: 50px; }
-.gh-mascot svg { width: 33px; height: 33px; }
-@keyframes gh-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-1.2px); } }
+.gh-mascot svg { width: 24px; height: 24px; }   /* オレンジのキャラクター（足先まで24px）と上下の端をそろえる */
 @keyframes gh-tilt { 0%,60%,100% { transform: rotate(0); } 68% { transform: rotate(-9deg); } 78% { transform: rotate(-9deg); } 86% { transform: rotate(6deg); } 92% { transform: rotate(0); } }
 @keyframes gh-wag { from { transform: rotate(-14deg); } to { transform: rotate(12deg); } }
 @keyframes gh-wink { 0%,88%,100% { transform: scaleY(0); } 90%,95% { transform: scaleY(1); } }
@@ -231,7 +230,7 @@ html,body{width:100%;height:100%;background:var(--bg);font-family:var(--font);co
       <div class="gh-wrap">
         <a class="gh-mascot" href="https://github.com/aaiuioo-maker/GAZOU-SURAIDO3.9" target="_blank" rel="noopener" title="GitHub で公開" aria-label="GitHub で公開">
           <!-- GitHub のマーク（丸の中のネコ＋左に巻いたタコの足）。部品ごとに分けて、それぞれ動かしている -->
-          <svg viewBox="-0.6 -0.6 17.2 17.2" aria-hidden="true">
+          <svg viewBox="0 0 16 16" aria-hidden="true">
             <defs><clipPath id="ghClip"><circle cx="8" cy="8" r="8"/></clipPath></defs>
             <g class="gh-all">
               <circle class="gh-disc" cx="8" cy="8" r="8"/>
