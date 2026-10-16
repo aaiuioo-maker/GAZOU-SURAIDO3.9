@@ -79,9 +79,9 @@ html,body{width:100%;height:100%;background:var(--bg);font-family:var(--font);co
 .nav-btn.prev{left:-36px;}
 .nav-btn.next{right:-36px;}
 .nav-btn:disabled{opacity:0.2;}
-/* スマホ幅では枠の外だと画面からはみ出して見えないので、内側の一番下に小さく置く（真ん中だと画像のじゃまになる） */
+/* スマホ幅では枠の外だと画面からはみ出して見えないので、画像のすぐ下に小さく置く（高さは下のスクリプト placeNav で合わせる） */
 @media (max-width:580px){
-  .nav-btn{top:auto;bottom:4px;transform:none;width:24px;height:24px;font-size:0.7rem;background:rgba(0,0,85,0.75);}
+  .nav-btn{bottom:auto;transform:none;width:24px;height:24px;padding:0;font-size:0.7rem;line-height:1;color:var(--text);background:rgba(0,0,85,0.75);}
   .nav-btn.prev{left:6px;}
   .nav-btn.next{right:6px;}
 }
@@ -696,6 +696,22 @@ container.addEventListener('pointerup',function(e){
   }else if(Math.abs(dx)>40&&Math.abs(dx)>Math.abs(dy)*1.2){move(dx<0?1:-1);}
 });
 container.addEventListener('pointercancel',function(){drag=false;});
+
+/* ══ スマホ幅では ◄► ボタンを画像のすぐ下に置く（画像の大きさは画面で変わるので、下の端を測って合わせる） ══ */
+(function placeNav(){
+  var frame=document.querySelector('.slide-frame'),box=document.getElementById('container');
+  var btns=[document.getElementById('prevBtn'),document.getElementById('nextBtn')];
+  function place(){
+    if(window.innerWidth>580){btns.forEach(function(b){b.style.top='';});return;}
+    var top=box.getBoundingClientRect().bottom-frame.getBoundingClientRect().top+6;
+    // 下にすき間がないときは、画像の下の端の内側に置く
+    top=Math.min(top,frame.clientHeight-btns[0].offsetHeight-2);
+    btns.forEach(function(b){b.style.top=top+'px';});
+  }
+  if(window.ResizeObserver){new ResizeObserver(place).observe(box);new ResizeObserver(place).observe(frame);}
+  window.addEventListener('resize',place);
+  place();
+})();
 
 /* ══ COMMAND ══ */
 var cmdOpen=false,cmdIdx=0;
