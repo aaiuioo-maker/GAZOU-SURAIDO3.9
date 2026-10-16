@@ -137,7 +137,7 @@ html,body{width:100%;height:100%;background:var(--bg);font-family:var(--font);co
 .zoom-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.96);z-index:400;flex-direction:column;}
 .zoom-ov.vis{display:flex;}
 .zoom-viewport{flex:1;position:relative;overflow:hidden;touch-action:none;cursor:grab;}
-.zoom-canvas{position:absolute;top:0;left:0;transform-origin:0 0;}
+.zoom-canvas{position:absolute;top:0;left:0;transform-origin:0 0;will-change:transform;}
 .zoom-canvas img{display:block;user-select:none;pointer-events:none;}
 .zoom-hud{flex-shrink:0;height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;background:rgba(0,0,20,0.9);border-top:1px solid var(--border2);}
 .zoom-hud-btn{font-family:var(--font);font-size:0.65rem;color:var(--text);background:var(--win);border:2px solid var(--border);padding:4px 10px;cursor:pointer;}
@@ -860,6 +860,7 @@ var zoomEl=document.getElementById('zoom'),zoomViewport=document.getElementById(
     zoomCanvas=document.getElementById('zoomCanvas'),zoomImg=document.getElementById('zoomImg'),
     zoomInfo=document.getElementById('zoomInfo');
 var zScale=1,zTx=0,zTy=0,zImgW=0,zImgH=0;
+var zInfoScale=-1;
 function zApply(anim){
   var vw=window.innerWidth,vh=window.innerHeight-44;
   var w=zImgW*zScale,h=zImgH*zScale;
@@ -867,8 +868,10 @@ function zApply(anim){
   zTx=w<=vw?(vw-w)/2:Math.max(vw-w,Math.min(0,zTx));
   zTy=h<=vh?(vh-h)/2:Math.max(vh-h,Math.min(0,zTy));
   zoomCanvas.style.transition=anim?'transform 0.25s':'none';
-  zoomCanvas.style.transform='translate('+zTx+'px,'+zTy+'px) scale('+zScale+')';
-  zoomInfo.textContent=Math.round(zScale*100)+'%　ダブルタップで拡大';
+  zoomCanvas.style.transform='translate3d('+zTx+'px,'+zTy+'px,0) scale('+zScale+')';
+  // ％の表示は、倍率が変わったときだけ書きかえる（動かすたびに書くと重くなる）
+  var pct=Math.round(zScale*100);
+  if(pct!==zInfoScale){zInfoScale=pct;zoomInfo.textContent=pct+'%　ダブルタップで拡大';}
 }
 function zCenter(){var vw=window.innerWidth,vh=window.innerHeight-44;zTx=(vw-zImgW*zScale)/2;zTy=(vh-zImgH*zScale)/2;}
 function openZoom(i){
@@ -879,50 +882,85 @@ function openZoom(i){
   };
   zoomImg.src=images[i].src;zoomEl.classList.add('vis');
 }
-function closeZoom(){zoomEl.classList.remove('vis');zoomImg.src='';}
+function closeZoom(){zStopFling();zPtrs={};zoomEl.classList.remove('vis');zoomImg.src='';}
 function zoomOut(){zScale=Math.max(0.5,zScale*0.6);zCenter();zApply(true);}
-var zPtrs={},zLastPinch=0,zLastTap=0,zPanStart={x:0,y:0,tx:0,ty:0};
+// 拡大画面の指の操作（なめらかに動くように）
+//   ・指の動きは記録だけして、画面への反映は1コマ（requestAnimationFrame）に1回にまとめる
+//   ・2本指から1本指に戻ったときは、残った指の位置から動かし直す（画像が飛ばないように）
+//   ・指を離したときの勢いで、少しすべってから止まる
+var zPtrs={},zLastPinch=0,zLastTap=0,zPanStart={x:0,y:0,tx:0,ty:0},zMoved=false;
+var zRaf=0,zVel={x:0,y:0},zLastMove={x:0,y:0,t:0},zFling=0;
+function zRequest(){if(!zRaf)zRaf=requestAnimationFrame(function(){zRaf=0;zApply(false);});}
+function zStopFling(){if(zFling){cancelAnimationFrame(zFling);zFling=0;}}
+function zResetPan(){
+  var ids=Object.keys(zPtrs);if(!ids.length)return;
+  var p=zPtrs[ids[0]];zPanStart={x:p.x,y:p.y,tx:zTx,ty:zTy};
+  zVel={x:0,y:0};zLastMove={x:p.x,y:p.y,t:performance.now()};
+}
 zoomViewport.addEventListener('pointerdown',function(e){
-  e.preventDefault();zoomViewport.setPointerCapture(e.pointerId);
+  e.preventDefault();zStopFling();try{zoomViewport.setPointerCapture(e.pointerId);}catch(err){}
   zPtrs[e.pointerId]={x:e.clientX,y:e.clientY};
   var ids=Object.keys(zPtrs);
-  if(ids.length===1){zPanStart={x:e.clientX,y:e.clientY,tx:zTx,ty:zTy};}
-  else if(ids.length===2){var a=zPtrs[ids[0]],b=zPtrs[ids[1]];zLastPinch=Math.hypot(a.x-b.x,a.y-b.y);}
+  if(ids.length===1){zMoved=false;zResetPan();}
+  else if(ids.length===2){zMoved=true;var a=zPtrs[ids[0]],b=zPtrs[ids[1]];zLastPinch=Math.hypot(a.x-b.x,a.y-b.y);}
 });
 zoomViewport.addEventListener('pointermove',function(e){
   e.preventDefault();if(!zPtrs[e.pointerId])return;
   zPtrs[e.pointerId]={x:e.clientX,y:e.clientY};
   var ids=Object.keys(zPtrs);
-  if(ids.length===1){zTx=zPanStart.tx+(e.clientX-zPanStart.x);zTy=zPanStart.ty+(e.clientY-zPanStart.y);zApply(false);}
-  else if(ids.length===2){
+  if(ids.length===1){
+    var dx=e.clientX-zPanStart.x,dy=e.clientY-zPanStart.y;
+    if(Math.abs(dx)+Math.abs(dy)>6)zMoved=true;
+    zTx=zPanStart.tx+dx;zTy=zPanStart.ty+dy;
+    // 指の速さ（なめらかにならす）を覚えておき、離したときのすべりに使う
+    var now=performance.now(),dt=Math.max(1,now-zLastMove.t);
+    zVel.x=zVel.x*0.6+((e.clientX-zLastMove.x)/dt)*0.4;
+    zVel.y=zVel.y*0.6+((e.clientY-zLastMove.y)/dt)*0.4;
+    zLastMove={x:e.clientX,y:e.clientY,t:now};
+    zRequest();
+  }else if(ids.length===2){
     var a=zPtrs[ids[0]],b=zPtrs[ids[1]],dist=Math.hypot(a.x-b.x,a.y-b.y);
     if(zLastPinch>0){
       var r=dist/zLastPinch,mx=(a.x+b.x)/2,my=(a.y+b.y)/2,ps=zScale;
       zScale=Math.min(8,Math.max(0.5,zScale*r));
-      zTx=mx-(mx-zTx)*(zScale/ps);zTy=my-(my-zTy)*(zScale/ps);zApply(false);
+      zTx=mx-(mx-zTx)*(zScale/ps);zTy=my-(my-zTy)*(zScale/ps);zRequest();
     }
     zLastPinch=dist;
   }
 });
-zoomViewport.addEventListener('pointerup',function(e){
+function zPointerEnd(e,cancel){
   e.preventDefault();
-  if(Object.keys(zPtrs).length===1){
-    var now=Date.now(),dx=e.clientX-zPanStart.x,dy=e.clientY-zPanStart.y;
-    if(Math.sqrt(dx*dx+dy*dy)<10){
-      if(now-zLastTap<350){
-        if(zScale>1.5){zScale=Math.min(1,window.innerWidth/zImgW,(window.innerHeight-44)/zImgH);zCenter();}
-        else{var ps=zScale;zScale=Math.min(8,Math.max(2.5,ps*2.5));zTx=e.clientX-(e.clientX-zTx)*(zScale/ps);zTy=e.clientY-(e.clientY-zTy)*(zScale/ps);}
-        zApply(true);zLastTap=0;
-      }else zLastTap=now;
-    }
+  var wasOne=Object.keys(zPtrs).length===1;
+  delete zPtrs[e.pointerId];
+  var left=Object.keys(zPtrs).length;
+  if(left===1){zLastPinch=0;zApply(false);zResetPan();return;}   // 2本→1本：残った指から動かし直す
+  if(left>0||!wasOne||cancel){zLastPinch=0;return;}
+  if(!zMoved){
+    // タップ：2回続けたら拡大／元に戻す
+    var now=Date.now();
+    if(now-zLastTap<350){
+      if(zScale>1.5){zScale=Math.min(1,window.innerWidth/zImgW,(window.innerHeight-44)/zImgH);zCenter();}
+      else{var ps=zScale;zScale=Math.min(8,Math.max(2.5,ps*2.5));zTx=e.clientX-(e.clientX-zTx)*(zScale/ps);zTy=e.clientY-(e.clientY-zTy)*(zScale/ps);}
+      zApply(true);zLastTap=0;
+    }else zLastTap=now;
+    return;
   }
-  delete zPtrs[e.pointerId];if(Object.keys(zPtrs).length===0)zLastPinch=0;
-});
-zoomViewport.addEventListener('pointercancel',function(e){delete zPtrs[e.pointerId];});
+  // 離したあとの勢いで少しすべる（止まってから離したときはすべらない）
+  if(performance.now()-zLastMove.t>80)return;
+  var vx=zVel.x*16,vy=zVel.y*16;   // 1コマあたりの移動量
+  (function step(){
+    if(Math.abs(vx)<0.3&&Math.abs(vy)<0.3){zFling=0;return;}
+    var bx=zTx,by=zTy;zTx+=vx;zTy+=vy;zApply(false);
+    if(zTx===bx)vx=0;if(zTy===by)vy=0;   // 端に着いたら止める
+    vx*=0.92;vy*=0.92;zFling=requestAnimationFrame(step);
+  })();
+}
+zoomViewport.addEventListener('pointerup',function(e){zPointerEnd(e,false);});
+zoomViewport.addEventListener('pointercancel',function(e){zPointerEnd(e,true);});
 zoomViewport.addEventListener('wheel',function(e){
-  e.preventDefault();var r=e.deltaY<0?1.15:0.87,ps=zScale;
+  e.preventDefault();zStopFling();var r=e.deltaY<0?1.15:0.87,ps=zScale;
   zScale=Math.min(8,Math.max(0.5,zScale*r));
-  zTx=e.clientX-(e.clientX-zTx)*(zScale/ps);zTy=e.clientY-(e.clientY-zTy)*(zScale/ps);zApply(false);
+  zTx=e.clientX-(e.clientX-zTx)*(zScale/ps);zTy=e.clientY-(e.clientY-zTy)*(zScale/ps);zRequest();
 },{passive:false});
 
 /* ══ TOAST ══ */
